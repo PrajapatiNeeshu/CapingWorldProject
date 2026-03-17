@@ -20,7 +20,7 @@ export class LoginPage {
     await this.page.fill(this.passwordInput, password);
     await this.page.click(this.loginButton);
   }
-
+         
   async getErrorMessage(): Promise<string> {
     return await this.page.locator(this.errorMessage).textContent() || '';
   }
