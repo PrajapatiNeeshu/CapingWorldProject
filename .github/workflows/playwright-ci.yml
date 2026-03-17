@@ -1,0 +1,132 @@
+name: Playwright CI - Auto Test & Issue Creation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  playwright-tests:
+    name: Run Playwright Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      # ── 20-minute delay after push to main ──────────────────────────────────
+      - name: Wait 20 minutes after push
+        if: github.event_name == 'push'
+        run: |
+          echo "Waiting 20 minutes before running tests..."
+          sleep 1200
+          echo "Wait complete. Starting test run."
+
+      # ── Setup ────────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      # ── Run Tests ────────────────────────────────────────────────────────────
+      - name: Run Playwright tests
+        id: tests
+        run: |
+          npx playwright test tests/checkout.spec.js \
+            --project=chromium \
+            --workers=1 \
+            --timeout=300000 \
+            --reporter=json,html 2>&1 | tee test-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Check test outcome
+        id: outcome
+        run: |
+          if grep -q "failed" test-output.txt; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+            # Extract failed test names
+            grep -E "✗|FAILED|failed" test-output.txt | head -20 > failed-tests.txt || true
+            echo "failed_tests<<EOF" >> $GITHUB_OUTPUT
+            cat failed-tests.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+
+      # ── Upload Artifacts ─────────────────────────────────────────────────────
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_number }}
+          path: |
+            playwright-report/
+            test-results/
+            test-output.txt
+          retention-days: 14
+
+      # ── Create GitHub Issue on Failure ────────────────────────────────────────
+      - name: Create GitHub Issue on test failure
+        if: steps.outcome.outputs.status == 'failure'
+        uses: actions/github-script@v7
+        env:
+          FAILED_TESTS: ${{ steps.outcome.outputs.failed_tests }}
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const date = new Date().toUTCString();
+            const failedTests = process.env.FAILED_TESTS || 'See run logs for details';
+            const shortSha = context.sha.substring(0, 7);
+
+            const body = [
+              '## 🚨 Playwright Test Failure Detected',
+              '',
+              '| Field | Value |',
+              '|-------|-------|',
+              `| **Branch** | \`${context.ref.replace('refs/heads/', '')}\` |`,
+              `| **Commit** | \`${shortSha}\` |`,
+              `| **Triggered by** | ${context.actor} |`,
+              `| **Date** | ${date} |`,
+              `| **Run** | [View Full Run](${runUrl}) |`,
+              '',
+              '### Failed Tests',
+              '```',
+              failedTests,
+              '```',
+              '',
+              '### Artifacts',
+              `[Download screenshots & videos](${runUrl}) (available for 14 days)`,
+              '',
+              '### Checklist',
+              '- [ ] Review the failing test logs',
+              '- [ ] Check attached screenshots/videos',
+              '- [ ] Identify root cause (flaky / real regression)',
+              '- [ ] Fix and push to trigger a new run',
+            ].join('\n');
+
+            await github.rest.issues.create({
+              ...context.repo,
+              title: `🚨 Playwright Failure [${shortSha}] - ${new Date().toISOString().split('T')[0]}`,
+              body,
+              labels: ['test-failure', 'automated'],
+            });
+
+      # ── Final status ─────────────────────────────────────────────────────────
+      - name: Fail job if tests failed
+        if: steps.outcome.outputs.status == 'failure'
+        run: |
+          echo "Tests failed. GitHub issue created."
+          exit 1
