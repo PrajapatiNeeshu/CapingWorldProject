@@ -42,21 +42,44 @@ class PaymentPage {
     throw new Error('Payment frame with inputs not found within timeout');
   }
 
+  /** Dismiss cookie consent banners on both the main page and the payment iframe. */
+  async _dismissCookieBanner(frame) {
+    // Dismiss on main page (banner can overlap the iframe at bottom of viewport)
+    await this.page.evaluate(() => {
+      document.querySelectorAll('[aria-label="cookieconsent"], .cc-window, #cookieconsent').forEach(el => {
+        el.style.display = 'none';
+      });
+    }).catch(() => {});
+
+    // Dismiss inside the payment iframe too
+    await frame.evaluate(() => {
+      document.querySelectorAll('[aria-label="cookieconsent"], .cc-window, #cookieconsent').forEach(el => {
+        el.style.display = 'none';
+      });
+    }).catch(() => {});
+
+    await this.page.waitForTimeout(300);
+    console.log('  Cookie consent banners dismissed (main page + payment frame)');
+  }
+
   async fillCardDetails({ cardNumber, expiryDate, cvv = '123' }) {
     const frame = await this._resolvePaymentFrame(30000);
+
+    // Dismiss cookie consent banners before interacting with payment fields
+    await this._dismissCookieBanner(frame);
 
     const cardIn   = frame.getByPlaceholder('Card Number');
     const expiryIn = frame.getByPlaceholder('Expiration Date');
 
     // Fill card number using fill() — triggers Angular input event and auto-formats
     await cardIn.waitFor({ timeout: 10000 });
-    await cardIn.click(); await this.page.waitForTimeout(400);
+    await cardIn.click({ force: true }); await this.page.waitForTimeout(400);
     await cardIn.fill(cardNumber);
     await this.page.waitForTimeout(600);
 
     // Fill expiry date
     await expiryIn.waitFor({ timeout: 10000 });
-    await expiryIn.click(); await this.page.waitForTimeout(400);
+    await expiryIn.click({ force: true }); await this.page.waitForTimeout(400);
     await expiryIn.pressSequentially(expiryDate, { delay: 40 });
     await this.page.waitForTimeout(400);
 
