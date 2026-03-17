@@ -43,22 +43,24 @@ jobs:
       # ── Run Tests ────────────────────────────────────────────────────────────
       - name: Run Playwright tests
         id: tests
+        shell: bash
         run: |
           npx playwright test tests/checkout.spec.js \
             --project=chromium \
             --workers=1 \
             --timeout=300000 \
-            --reporter=json,html 2>&1 | tee test-output.txt
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+            --reporter=list,html > test-output.txt 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
       - name: Check test outcome
         id: outcome
+        shell: bash
         run: |
-          if grep -q "failed" test-output.txt; then
+          if [ "${{ steps.tests.outputs.exit_code }}" != "0" ]; then
             echo "status=failure" >> $GITHUB_OUTPUT
-            # Extract failed test names
-            grep -E "✗|FAILED|failed" test-output.txt | head -20 > failed-tests.txt || true
+            # Extract failed test names using non-zero failure count pattern
+            grep -E "^\s*(×|✘|FAILED|\d+ failed)" test-output.txt | head -20 > failed-tests.txt || true
             echo "failed_tests<<EOF" >> $GITHUB_OUTPUT
             cat failed-tests.txt >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
