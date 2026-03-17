@@ -39,7 +39,7 @@ jobs:
         id: tests
         shell: bash
         run: |
-          npx playwright test tests/checkout.spec.js \
+          npx playwright test tests/checkout-e2e.spec.js \
             --project=chromium \
             --workers=1 \
             --timeout=300000 \
