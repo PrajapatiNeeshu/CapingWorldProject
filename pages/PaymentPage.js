@@ -107,15 +107,15 @@ class PaymentPage {
     const frame = await this._resolvePaymentFrame(10000);
     const nextBtn = frame.getByRole('button', { name: /next/i });
     await nextBtn.waitFor({ timeout: 10000 });
-    // Scroll the button into view inside the cross-origin iframe via JS
-    await frame.evaluate(() => {
+    // Use JS click to bypass cross-origin iframe viewport restrictions
+    const clicked = await frame.evaluate(() => {
       const btn = document.querySelector('button.action-buttons__primary, button[class*="primary"]');
-      if (btn) btn.scrollIntoView({ block: 'center' });
-    }).catch(() => {});
-    // Also scroll the main page so the iframe area is in view
-    await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
-    await this.page.waitForTimeout(500);
-    await nextBtn.click({ force: true });
+      if (btn) { btn.click(); return true; }
+      return false;
+    }).catch(() => false);
+    if (!clicked) {
+      await nextBtn.click({ force: true });
+    }
     await this.page.waitForTimeout(3000);
     console.log('Clicked: Next (in payment frame)');
   }
