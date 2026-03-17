@@ -107,6 +107,8 @@ class PaymentPage {
     const frame = await this._resolvePaymentFrame(10000);
     const nextBtn = frame.getByRole('button', { name: /next/i });
     await nextBtn.waitFor({ timeout: 10000 });
+    await nextBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(300);
     await nextBtn.click({ force: true });
     await this.page.waitForTimeout(3000);
     console.log('Clicked: Next (in payment frame)');
