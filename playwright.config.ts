@@ -15,6 +15,7 @@ export default defineConfig({
     ['json', { outputFile: 'test-results/results.json' }],
     ['junit', { outputFile: 'test-results/results.xml' }],
     ['allure-playwright', { outputFolder: 'allure-results', suiteTitle: false }],
+    ['./utils/SmartReporter.ts', { outputFile: 'smart-report/index.html' }],
   ],
   use: {
     baseURL: process.env.BASE_URL || 'https://example.com',
