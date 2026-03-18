@@ -12,7 +12,6 @@ jobs:
     permissions:
       issues: write
       contents: read
-
     steps:
       # Issue title/body passed via env vars (not direct interpolation) to
       # prevent YAML injection. Requires ANTHROPIC_API_KEY repo secret.
@@ -30,7 +29,6 @@ jobs:
             "" \
             "Title: $ISSUE_TITLE" \
             "Body: $ISSUE_BODY")
-
           RESPONSE=$(curl -sf https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
@@ -44,7 +42,6 @@ jobs:
           echo "response<<EOF" >> $GITHUB_OUTPUT
           echo "$RESPONSE" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Comment with AI summary
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
